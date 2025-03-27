@@ -15,12 +15,10 @@ model = Gemma3ForCausalLM.from_pretrained(
     "google/gemma-3-4b-it",
     torch_dtype=torch.bfloat16,
     device_map="auto",
-    use_auth_token=True,
 ).eval()
 
 tokenizer = AutoTokenizer.from_pretrained(
     "google/gemma-3-4b-it",
-    use_auth_token=True,
 )
 load_time = time.time() - start_time
 print(f"Model loaded in {load_time:.2f} seconds")
