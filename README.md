@@ -1,5 +1,5 @@
 ---
-title: Gradio Chatbot
+title: Gemma Translate
 emoji: 💬
 colorFrom: yellow
 colorTo: purple
