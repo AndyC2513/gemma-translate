@@ -47,7 +47,7 @@ def generate_text(
     input_ids = input_ids.to(model.device)
 
     streamer = TextIteratorStreamer(
-        tokenizer, timeout=30.0, skip_prompt=True, skip_special_tokens=True
+        tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True
     )
     generate_kwargs = dict(
         {"input_ids": input_ids},
@@ -69,13 +69,43 @@ def generate_text(
         yield " ".join(output)
 
 
-demo = gr.ChatInterface(
-    fn = generate_text,
-    stop_btn=None,
-    cache_examples=False,
-    type="messages",
-    fill_height=True,
-)
+with gr.Blocks as demo:
+    gr.Markdown("# Text Translation Using Google Gemma 3")
+
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown("### Translate From")
+            from_lang = gr.Dropdown(
+                choices = [],
+                value = "auto",
+                label = ""
+            )
+
+        with gr.Column():
+            gr.Markdown("### Translate To")
+            to_lang = gr.Dropdown(
+                choices = [],
+                value = "auto",
+                label = ""
+            )
+
+    with gr.Row():
+        with gr.Column():
+            gr.Textbox(
+                lines = 10,
+                placeholder = "Enter text to translate",
+                label = ""
+            )
+
+        with gr.Column():
+            output_text = gr.Textbox(
+                lines=10,
+                label=""
+            )
+
+    translate_button = gr.Button("Translate")
+
+
 
 if __name__ == "__main__":
     demo.queue(max_size=20).launch()
