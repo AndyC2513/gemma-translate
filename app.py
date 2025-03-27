@@ -1,64 +1,65 @@
+import torch
+from collections.abc import Iterator
+from transformers import Gemma3ForCausalLM, AutoTokenizer, TextIteratorStreamer
+import time
+import spaces
+from threading import Thread
 import gradio as gr
-from huggingface_hub import InferenceClient
 
-"""
-For more information on `huggingface_hub` Inference API support, please check the docs: https://huggingface.co/docs/huggingface_hub/v0.22.2/en/guides/inference
-"""
-client = InferenceClient("HuggingFaceH4/zephyr-7b-beta")
+MAX_MAX_NEW_TOKENS = 2048
+DEFAULT_MAX_NEW_TOKENS = 1024
+MAX_INPUT_TOKEN_LENGTH = 4096
 
+start_time = time.time()
+model = Gemma3ForCausalLM.from_pretrained(
+    "google/gemma-3-4b-it",
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+).eval()
 
-def respond(
-    message,
-    history: list[tuple[str, str]],
-    system_message,
-    max_tokens,
-    temperature,
-    top_p,
-):
-    messages = [{"role": "system", "content": system_message}]
-
-    for val in history:
-        if val[0]:
-            messages.append({"role": "user", "content": val[0]})
-        if val[1]:
-            messages.append({"role": "assistant", "content": val[1]})
-
-    messages.append({"role": "user", "content": message})
-
-    response = ""
-
-    for message in client.chat_completion(
-        messages,
-        max_tokens=max_tokens,
-        stream=True,
-        temperature=temperature,
-        top_p=top_p,
-    ):
-        token = message.choices[0].delta.content
-
-        response += token
-        yield response
-
-
-"""
-For information on how to customize the ChatInterface, peruse the gradio docs: https://www.gradio.app/docs/chatinterface
-"""
-demo = gr.ChatInterface(
-    respond,
-    additional_inputs=[
-        gr.Textbox(value="You are a friendly Chatbot.", label="System message"),
-        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max new tokens"),
-        gr.Slider(minimum=0.1, maximum=4.0, value=0.7, step=0.1, label="Temperature"),
-        gr.Slider(
-            minimum=0.1,
-            maximum=1.0,
-            value=0.95,
-            step=0.05,
-            label="Top-p (nucleus sampling)",
-        ),
-    ],
+tokenizer = AutoTokenizer.from_pretrained(
+    "google/gemma-3-4b-it",
 )
+load_time = time.time() - start_time
+print(f"Model loaded in {load_time:.2f} seconds")
 
 
-if __name__ == "__main__":
-    demo.launch()
+@spaces.GPU
+def generate_text(
+    message: str,
+    chat_history: list[dict],
+    max_new_tokens: int = 1024,
+    temperature: float = 0.6,
+    top_p: float = 0.9,
+    top_k: int = 50,
+    repetition_penalty: float = 1.0,
+) -> Iterator[str]:
+    conversation = [*chat_history, {"role": "user", "content": message}]
+    input_ids = tokenizer.apply_chat_template(
+        conversation, add_generation_prompt=True, return_tensors="pt"
+    )
+    if input_ids.shape[1] > MAX_INPUT_TOKEN_LENGTH:
+        input_ids = input_ids[:, -MAX_INPUT_TOKEN_LENGTH:]
+    input_ids = input_ids.to(model.device)
+
+    streamer = TextIteratorStreamer(
+        tokenizer, timeout=30.0, skip_prompt=True, skip_special_tokens=True
+    )
+    generate_kwargs = dict(
+        {"input_ids": input_ids},
+        streamer=streamer,
+        max_new_tokens=max_new_tokens,
+        do_sample=True,
+        top_p=top_p,
+        top_k=top_k,
+        temperature=temperature,
+        num_beams=1,
+        repetition_penalty=repetition_penalty,
+    )
+    thread = Thread(target=model.generate, kwargs=generate_kwargs)
+    thread.start()
+    
+    output = []
+    for text in streamer:
+        output.append(text)
+        yield " ".join(output)
