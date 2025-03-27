@@ -67,3 +67,15 @@ def generate_text(
     for text in streamer:
         output.append(text)
         yield " ".join(output)
+
+
+demo = gr.ChatInterface(
+    fn = generate_text,
+    stop_btn=None,
+    cache_examples=False,
+    type="messages",
+    fill_height=True,
+)
+
+if __name__ == "__main__":
+    demo.queue(max_size=20).launch()
