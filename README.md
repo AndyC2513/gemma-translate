@@ -9,4 +9,4 @@ app_file: app.py
 pinned: false
 ---
 
-A French, English, Spanish translator using the Gemma 3 4b model.
+A French, English, Spanish translator using the Gemma 3 4b model. Checkout the deployed [app](https://huggingface.co/spaces/AC2513/gemma-translate)
